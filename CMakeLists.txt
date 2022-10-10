@@ -4,4 +4,4 @@ project(n_gram)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 
-add_executable(n_gram main.cpp JobsQueue.h SequentialNgram.h ParallelNgram.h)
+add_executable(n_gram main.cpp JobsQueue.h SequentialNgram.h ParallelNgram.h Utils.h)

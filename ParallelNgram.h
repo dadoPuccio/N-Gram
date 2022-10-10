@@ -12,11 +12,12 @@
 #include <filesystem>
 
 #include "JobsQueue.h"
+#include "Utils.h"
 
-void parallelNgram(std::string& file_name, std::string& out_folder_parallel, int n, int chunk_size);
+void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel, int n, int chunk_size, int num_threads);
 
-void parallelNgram(std::string& file_name, std::string& out_folder_parallel, int n, int chunk_size){
-    /* Parallel implementation of an algorithm to extract ngrams
+void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel, int n, int chunk_size, int num_threads){
+    /* Parallel implementation of an algorithm to extract words N-grams
      * This implementation is based on Producer-Consumers pattern */
     std::ifstream infile(file_name);
     JobsQueue jobsQueue; // Queue in which jobs are stored
@@ -27,79 +28,101 @@ void parallelNgram(std::string& file_name, std::string& out_folder_parallel, int
      * at the end it will be merged into one single file. */
     std::filesystem::create_directory(out_folder_parallel + "tmp/");
 
-    #pragma omp parallel default(none) shared(infile, out_folder_parallel, jobsQueue, n, chunk_size) private(tid)
+    #pragma omp parallel num_threads(num_threads) default(none) shared(infile, out_folder_parallel, jobsQueue, n, chunk_size, std::cout) private(tid)
     {
         #pragma omp single nowait
         {
             /* PRODUCER THREAD: reads the input file and generates chunks of words (vector of strings)
              * which are enqueued and passed to CONSUMERS threads */
+
             std::vector<std::string> wordsLoaded;
+            std::string border[n-1];
+
             std::string line;
+            std::string processedLine;
             int counter;
+            size_t pos;
+
+            counter = 0;
 
             while (std::getline(infile, line)) {
 
-                size_t pos;
-                pos = line.find(' '); // we look for spaces in order to distinguish words
+                /* Remove from the line what is not a letter nor a space */
+                std::remove_copy_if(
+                        line.begin(),
+                        line.end(),
+                        std::back_inserter(processedLine),
+                        std::ptr_fun<char&,bool>(&processInputChar));
+
+                pos = processedLine.find(' '); // we look for spaces in order to distinguish words
+                // std::cout << processedLine << std::endl;
 
                 while (pos != std::string::npos) {
-                    wordsLoaded.push_back(line.substr(0, pos));
-                    line.erase(0, pos + 1);
-                    pos = line.find(' ');
+                    if(pos > 0) { // in such a way we ignore double spaces
+                        wordsLoaded.push_back(processedLine.substr(0, pos));
+                        counter += 1;
+                    }
 
-                    counter += 1;
+                    processedLine.erase(0, pos + 1);
+                    pos = processedLine.find(' ');
 
-                    if(counter > chunk_size){ // every chunk of words is enqueued in the jobsQueue
+                    if (counter >= chunk_size) { // every chunk of words is enqueued in the jobsQueue
                         jobsQueue.enqueue(wordsLoaded);
-                        wordsLoaded.clear();
-                        counter = 0;
+
+                        for(int i=0; i < n-1; i++) // we need to save the last n-1 words as they are needed for the next chunk
+                            border[i] = wordsLoaded[chunk_size - n + 1 + i];
+
+                        wordsLoaded.clear(); // clear the local current chunk
+
+                        for(int i=0; i < n-1; i++) // add the last n-1 words
+                            wordsLoaded.push_back(border[i]);
+                        counter = n-1;
                     }
                 }
+
+                processedLine.clear();
             }
 
             if(counter > 0){ // last chunk of data (it will be smaller in size)
                 jobsQueue.enqueue(wordsLoaded);
-                wordsLoaded.clear();
-                counter = 0;
             }
 
             jobsQueue.producerEnd(); // notify that the PRODUCES work is done
+            // std::cout << "PRODUCER has finished reading" << std::endl;
         }
 
         /* CONSUMER THREAD */
-        unsigned int len;
-        std::string ngram;
-        bool printed;
-
         std::vector<std::string> wordsChunk;
 
         tid = omp_get_thread_num();
 
-        std::ofstream partOutData;
+        std::ofstream partOutData; // init part of output stream
         partOutData.open(out_folder_parallel + "tmp/" + std::to_string(n) + "gram_outputParallelVersion"+std::to_string(tid)+".txt");
+
+        std::string ngram;
+        size_t pos;
 
         while(!jobsQueue.done()){ // until the PRODUCER hasn't finished
             if(jobsQueue.dequeue(wordsChunk)){ // gather a job from the jobsQueue
 
-                for (std::string &w: wordsChunk) {
-                    len = w.length();
-                    if (len >= n) {
-                        for (int i = 0; i < len - n + 1; i++) {
-                            // for each word we look for the consecutive substrings of length n (the ngrams)
+                 //std::cout << "CONSUMER is working..." << std::endl;
 
-                            ngram = w.substr(i, n);
-                            printed = true;
-                            for (char &c: ngram) {
-                                if (!isalpha(c)) // if the ngram contains a symbol or a number it is discarded
-                                    printed = false;
-                                else
-                                    c = (char) tolower(c);  // we produce an output of only lower-case letters
-                            }
+                ngram = "";
 
-                            if (printed)
-                                partOutData << ngram << std::endl; // write to file the ngram
-                        }
-                    }
+                /* First output */
+                for(int j=0; j < n; j++)
+                    ngram += wordsChunk[j] + " ";
+                partOutData << ngram << std::endl;
+
+                pos = ngram.find(' '); // detect where the first space is in order to locate the first word
+
+                /* Following outputs */
+                for(int i=n; i < wordsChunk.size(); i++){
+                    ngram.erase(0, pos + 1); // we remove the first word in the previous output
+                    ngram += wordsChunk[i] + " "; // and concatenate the last word for the following output
+
+                    partOutData << ngram << std::endl;
+                    pos =  ngram.find(' ');
                 }
             }
         }
@@ -113,9 +136,11 @@ void parallelNgram(std::string& file_name, std::string& out_folder_parallel, int
     totalOutData.open(out_folder_parallel + std::to_string(n) + "gram_outputParallelVersion.txt", std::ios_base::binary);
 
     for (const auto& entry : std::filesystem::directory_iterator(out_folder_parallel + "tmp/")){
-        partOutData.open(entry.path(), std::ios_base::binary);
-        totalOutData << partOutData.rdbuf(); // read from partial and write to total
-        partOutData.close();
+        if(std::filesystem::file_size(entry.path()) > 0) { // as empty files might be created with large chunk sizes
+            partOutData.open(entry.path(), std::ios_base::binary);
+            totalOutData << partOutData.rdbuf(); // read from partial and write to total
+            partOutData.close();
+        }
     }
 
     totalOutData.close();
