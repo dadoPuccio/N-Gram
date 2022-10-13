@@ -24,6 +24,7 @@ void sequentialNgramWords(std::string& file_name, std::string& out_folder_sequen
     std::string processedLine;
 
     std::vector<std::string> words; // vector in which we memorize all the words we read from the file
+    std::string tmp; // to store the last word in the line
 
     while(std::getline(infile, line)){
 
@@ -39,8 +40,15 @@ void sequentialNgramWords(std::string& file_name, std::string& out_folder_sequen
         while(pos != std::string::npos){
             if(pos > 0) // in such a way we ignore double spaces
                 words.push_back(processedLine.substr(0, pos));
-            processedLine.erase(0, pos + 1);
+            processedLine.erase(0, pos + 1); // erase the space as well
             pos = processedLine.find(' ');
+        }
+
+        // check if there is another word at the end of the line
+        if(!processedLine.empty()) {
+            tmp = processedLine.substr(0, processedLine.length() - 1);
+            if (!tmp.empty())
+                words.push_back(tmp);
         }
 
         processedLine.clear();

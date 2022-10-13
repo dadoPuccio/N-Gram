@@ -40,6 +40,7 @@ void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel
 
             std::string line;
             std::string processedLine;
+            std::string tmp; // to store the last word in the line
             int counter;
             size_t pos;
 
@@ -77,6 +78,15 @@ void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel
                         for(int i=0; i < n-1; i++) // add the last n-1 words
                             wordsLoaded.push_back(border[i]);
                         counter = n-1;
+                    }
+                }
+
+                // check if there is another word at the end of the line
+                if(!processedLine.empty()) {
+                    tmp = processedLine.substr(0, processedLine.length() - 1);
+                    if (!tmp.empty()) {
+                        wordsLoaded.push_back(tmp);
+                        counter += 1;
                     }
                 }
 
