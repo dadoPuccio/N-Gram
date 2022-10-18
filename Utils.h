@@ -16,17 +16,18 @@ bool processInputChar(char& c){
     /* Processes the input, removing everything apart alphabet letters and spaces */
     if(std::isalpha(c) || std::isspace(c)){
         if (std::isupper(c))
-            c = (char) std::tolower(c); // also it lowers the input
+            c = (char) std::tolower(c); // also it lowers uppercase characters
         return false;
     } else {
         return true;
     }
 }
 
-std::string mergeBooks(std::string dir, std::string file_name){
+std::string mergeBooks(std::string& dir, std::string& file_name){
+    /* Merges the books (.txt files) in a directory in order to create a single, larger book */
     std::ifstream book;
     std::ofstream mergedBook;
-    mergedBook.open(dir + file_name, std::ios_base::binary);
+    mergedBook.open(dir + file_name, std::ios_base::binary); // output file
 
     // std::cout << mergedBook.is_open() << std::endl;
 
@@ -43,7 +44,9 @@ std::string mergeBooks(std::string dir, std::string file_name){
     return dir + file_name;
 }
 
-std::string createFileWithMwords(std::string dir, std::string file_name, int M){
+std::string createFileWithMwords(std::string& dir, std::string& file_name, int M){
+    /* Creates a file with approx. M words given a bunch of .txt files in the directory dir */
+
     std::ifstream book;
     std::string line;
     std::string tmp;
@@ -54,10 +57,11 @@ std::string createFileWithMwords(std::string dir, std::string file_name, int M){
 
     int counter = 0;
 
-    while(counter < M) {
+    while(counter < M) { // we iterate over all the books as long as we don't gather M words
+
         for (const auto &entry: std::filesystem::directory_iterator(dir)) {
             if (std::filesystem::file_size(entry.path()) > 0 &&
-                entry.path() != dir + file_name) { // as empty files might be created with large chunk sizes
+                entry.path() != dir + file_name) {
                 book.open(entry.path());
 
                 while (std::getline(book, line)) {
@@ -97,6 +101,8 @@ std::string createFileWithMwords(std::string dir, std::string file_name, int M){
 }
 
 int countWords(std::string& file_path){
+    /* Approx count of the words in a .txt file */
+
     std::ifstream book;
     book.open(file_path);
 
@@ -123,9 +129,7 @@ int countWords(std::string& file_path){
                 counter += 1;
         }
     }
-
     book.close();
-
     std::cout << "This file has approx " << counter << " words" <<  std::endl;
 
     return counter;
