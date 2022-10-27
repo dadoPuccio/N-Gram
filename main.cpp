@@ -12,12 +12,20 @@ int main() {
 
     // file_name = mergeBooks("../../Testi/", "MergedBooks.txt");
 
-    // file_name = createFileWithMwords("../../Testi/", "1000.txt", 1000);
-    // file_name = createFileWithMwords("../../Testi/", "10000.txt", 10000);
-    // file_name = createFileWithMwords("../../Testi/", "100000.txt", 100000);
-    // file_name = createFileWithMwords("../../Testi/", "1M.txt", 1000000);
-    // file_name = createFileWithMwords("../../Testi/", "10M.txt", 10000000);
-    // file_name = createFileWithMwords("../../Testi/", "100M.txt", 100000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/100K.txt", 100000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/250K.txt", 250000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/500K.txt", 500000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/1M.txt", 1000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/2.5M.txt", 2500000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/5M.txt", 5000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/10M.txt", 10000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/25M.txt", 25000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/50M.txt", 50000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/100M.txt", 100000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/200M.txt", 200000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/300M.txt", 300000000);
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/400M.txt", 400000000); // Too Large for 16GB RAM
+    // file_name = createFileWith_M_Words("../../Testi/", "../../GeneratedBooks/500M.txt", 500000000); // Too Large for 16GB RAM
 
 
     std::string out_folder_sequential = "../OutSequential/";
@@ -35,12 +43,18 @@ int main() {
         std::filesystem::create_directory(out_folder_parallel); // create the folder if it doesn't exist
     }
 
-    int n_runs = 50;
+    int n_runs = 10;
     int n = 2; // n-gram
-    int chunk_size = 1000; // chunk_size of jobs in the parallel implementation
+    int chunk_size = 10000; // chunk_size of jobs in the parallel implementation
     int n_threads = 8;
 
+    // file_name = "../../GeneratedBooks/10M.txt";
+    // file_name = "../../TooLarge/400M.txt";
     file_name = "../../Testi/Proust.txt";
+
+    std::cout << "#########################" << std::endl;
+    std::cout << file_name << std::endl;
+    std::cout << "#########################" << std::endl;
 
     countWords(file_name);
 
@@ -50,7 +64,7 @@ int main() {
     avgParallelTime = 0;
     avgSpeedup = 0;
 
-    for(int i=0; i<n_runs; i++) {
+    for (int i = 0; i < n_runs; i++) {
 
         // Sequential Solution
         start = omp_get_wtime();
@@ -68,18 +82,20 @@ int main() {
         avgParallelTime += p;
         std::cout << "Parallel Time: " << p << std::endl;
 
-        avgSpeedup += s/p;
-        std::cout << "Speedup: " << s/p << std::endl << std::endl;
+        avgSpeedup += s / p;
+        std::cout << "Speedup: " << s / p << std::endl << std::endl;
     }
 
-    avgSequentialTime = avgSequentialTime/n_runs;
-    avgParallelTime = avgParallelTime/n_runs;
-    avgSpeedup = avgSpeedup/n_runs;
+    avgSequentialTime = avgSequentialTime / n_runs;
+    avgParallelTime = avgParallelTime / n_runs;
+    avgSpeedup = avgSpeedup / n_runs;
 
     std::cout << std::endl << "Average Sequential Time: " << avgSequentialTime << std::endl;
     std::cout << "Average Parallel Time: " << avgParallelTime << std::endl;
     std::cout << "Average Speedup: " << avgSpeedup << std::endl;
-    std::cout << "Average Speedup: " << avgSequentialTime/avgParallelTime << std::endl;
+    std::cout << "Average Speedup: " << avgSequentialTime / avgParallelTime << std::endl;
+
+    std::cout << std::endl << std::endl;
 
 }
 

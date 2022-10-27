@@ -9,7 +9,7 @@
 
 bool processInputChar(char& c);
 std::string mergeBooks(std::string dir, std::string file_name);
-std::string createFileWith_M_Words(std::string dir, std::string file_name, int M);
+std::string createFileWith_M_Words(std::string target_dir, std::string out_path, int M);
 int countWords(std::string& file_path);
 
 bool processInputChar(char& c){
@@ -44,7 +44,7 @@ std::string mergeBooks(std::string& dir, std::string& file_name){
     return dir + file_name;
 }
 
-std::string createFileWithMwords(std::string& dir, std::string& file_name, int M){
+std::string createFileWith_M_Words(std::string target_dir, std::string out_path, int M){
     /* Creates a file with approx. M words given a bunch of .txt files in the directory dir */
 
     std::ifstream book;
@@ -53,15 +53,15 @@ std::string createFileWithMwords(std::string& dir, std::string& file_name, int M
     size_t pos;
 
     std::ofstream MwordsBook;
-    MwordsBook.open(dir + file_name);
+    MwordsBook.open(out_path);
 
     int counter = 0;
 
     while(counter < M) { // we iterate over all the books as long as we don't gather M words
 
-        for (const auto &entry: std::filesystem::directory_iterator(dir)) {
+        for (const auto &entry: std::filesystem::directory_iterator(target_dir)) {
             if (std::filesystem::file_size(entry.path()) > 0 &&
-                entry.path() != dir + file_name) {
+                entry.path() != out_path) {
                 book.open(entry.path());
 
                 while (std::getline(book, line)) {
@@ -97,7 +97,7 @@ std::string createFileWithMwords(std::string& dir, std::string& file_name, int M
     MwordsBook.close();
     std::cout << "This file has approx " << counter << " words" <<  std::endl;
 
-    return dir + file_name;
+    return out_path;
 }
 
 int countWords(std::string& file_path){

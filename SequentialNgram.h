@@ -9,13 +9,14 @@
 #include <vector>
 #include <fstream>
 #include <algorithm>
+#include <map>
 
 #include "Utils.h"
 
 void sequentialNgramWords(std::string& file_name, std::string& out_folder_sequential, int n);
 
 void sequentialNgramWords(std::string& file_name, std::string& out_folder_sequential, int n){
-    /* Sequential implementation of an algorithm to extract words N-grams */
+    /* Sequential implementation of an algorithm to extract words N-grams histogram */
 
     // INPUT PHASE
     std::ifstream infile(file_name);
@@ -27,7 +28,7 @@ void sequentialNgramWords(std::string& file_name, std::string& out_folder_sequen
 
     while(std::getline(infile, line)){
 
-        /*Remove from the line what is not a letter nor a space */
+        /* Remove from the line what is not a letter nor a space */
         std::remove_copy_if(
             line.begin(),
             line.end(),
@@ -53,31 +54,46 @@ void sequentialNgramWords(std::string& file_name, std::string& out_folder_sequen
         processedLine.clear();
     }
 
-    // std::cout << words.size() << std::endl;
+    // std::cout << "Finished Input Phase" << std::endl;
 
-    // OUTPUT PHASE
-    std::ofstream outputFile;
-    outputFile.open(out_folder_sequential + std::to_string(n) + "gram_outputSerialVersion.txt");
+    // HISTOGRAM GENERATION
+    std::map<std::string, int> histogram; // histogram in which we store the ngrams as keys, and counters as values
+    std::map<std::string, int>::iterator it;
 
     std::string ngram;
     ngram = "";
 
-    /* First output */
+    /* First ngram */
     for(int j=0; j < n; j++)
         ngram += words[j] + " ";
-    outputFile << ngram << std::endl;
+    histogram.insert(std::make_pair(ngram, 1));
+    // outputFile << ngram << std::endl;
 
     size_t pos;
     pos = ngram.find(' '); // detect where the first space is in order to locate the first word
 
-    /* Following outputs */
+    /* Following ngrams */
     for(int i=n; i < words.size(); i++){
         ngram.erase(0, pos + 1); // we remove the first word in the previous output
         ngram += words[i] + " "; // and concatenate the last word for the following output
 
-        outputFile << ngram << std::endl;
-        pos =  ngram.find(' ');
+        it = histogram.find(ngram);
+        if(it != histogram.end())
+            it->second += 1; // add to the histogram
+        else
+            histogram.insert(std::make_pair(ngram, 1)); // insert key-value pair
+
+        pos =  ngram.find(' '); // next space to detect the next word
     }
+
+    // std::cout << "Finished Histogram Generation" << std::endl;
+
+    // OUTPUT PHASE
+    std::ofstream outputFile;
+    outputFile.open(out_folder_sequential + std::to_string(n) + "gram_outputSequentialVersion.txt");
+
+    for(auto& kv : histogram) // sorted, as we're using std::map
+        outputFile << kv.first << "\t" << kv.second << std::endl;
 
     outputFile.close();
 }

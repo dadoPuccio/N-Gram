@@ -13,22 +13,25 @@
 
 #include "JobsQueue.h"
 #include "Utils.h"
+#include "SharedHistogram.h"
+#include "Other Solutions/HistogramCollector.h"
+#include "Other Solutions/PartialHistogramsQueue.h"
 
 void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel, int n, int chunk_size, int num_threads);
 
 void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel, int n, int chunk_size, int num_threads){
-    /* Parallel implementation of an algorithm to extract words N-grams
+    /* Parallel implementation of an algorithm to extract words N-grams histogram
      * This implementation is based on Producer-Consumers pattern */
+    // double start = omp_get_wtime();
     std::ifstream infile(file_name);
     JobsQueue jobsQueue; // Queue in which jobs are stored
+    SharedHistogram sharedHistogram; // Class in which the CONSUMERS write their private histogram at the end of their work
+    // HistogramCollector histogramCollector;
+    // PartialHistogramsQueue partialHistogramsQueue(num_threads);
 
-    int tid;
-
-    /* Each Consumer thread will produce an output file with partial data in a /tmp/ folder,
-     * at the end it will be merged into one single file. */
-    std::filesystem::create_directory(out_folder_parallel + "tmp/");
-
-    #pragma omp parallel num_threads(num_threads) default(none) shared(infile, out_folder_parallel, jobsQueue, n, chunk_size, std::cout) private(tid)
+    /* Each Consumer thread will produce a partial histogram, which is written in the end into a shared histogram
+     * Finally the overall histogram is written to file. */
+    #pragma omp parallel num_threads(num_threads) default(none) shared(infile, out_folder_parallel, jobsQueue, n, chunk_size, std::cout, sharedHistogram)
     {
         #pragma omp single nowait
         {
@@ -97,17 +100,15 @@ void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel
                 jobsQueue.enqueue(wordsLoaded);
             }
 
-            jobsQueue.producerEnd(); // notify that the PRODUCES work is done
+            jobsQueue.producerEnd(); // notify that the PRODUCER work is done
             // std::cout << "PRODUCER has finished reading" << std::endl;
         }
 
         /* CONSUMER THREAD */
         std::vector<std::string> wordsChunk;
 
-        tid = omp_get_thread_num();
-
-        std::ofstream partOutData; // init part of output stream
-        partOutData.open(out_folder_parallel + "tmp/" + std::to_string(n) + "gram_outputParallelVersion"+std::to_string(tid)+".txt");
+        std::map<std::string, int> partialHistogram; // histogram in which we store the ngrams as keys, and counters as values
+        std::map<std::string, int>::iterator it;
 
         std::string ngram;
         size_t pos;
@@ -119,10 +120,15 @@ void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel
 
                 ngram = "";
 
-                /* First output */
+                /* First ngram */
                 for(int j=0; j < n; j++)
                     ngram += wordsChunk[j] + " ";
-                partOutData << ngram << std::endl;
+
+                it = partialHistogram.find(ngram);
+                if(it != partialHistogram.end()) // add the ngram to the local (partial) histogram
+                    it->second += 1;
+                else
+                    partialHistogram.insert(std::make_pair(ngram, 1));
 
                 pos = ngram.find(' '); // detect where the first space is in order to locate the first word
 
@@ -131,31 +137,48 @@ void parallelNgramWords(std::string& file_name, std::string& out_folder_parallel
                     ngram.erase(0, pos + 1); // we remove the first word in the previous output
                     ngram += wordsChunk[i] + " "; // and concatenate the last word for the following output
 
-                    partOutData << ngram << std::endl;
+                    it = partialHistogram.find(ngram);
+                    if(it != partialHistogram.end()) // add the ngram to the local (partial) histogram
+                        it->second += 1;
+                    else
+                        partialHistogram.insert(std::make_pair(ngram, 1));
+
                     pos =  ngram.find(' ');
                 }
             }
         }
-        partOutData.close();
-    }
 
-    /* SEQUENTIAL logic to merge all the partial output files */
-    std::ifstream partOutData;
+        // SHARE the LOCAL HISTOGRAM
+        sharedHistogram.mergeHistogram(partialHistogram); // 1st solution (shared histogram)
+        // histogramCollector.addPartialHistogram(partialHistogram); // 2nd solution (collect the histograms and sum them only when it's time to write to file)
+        /* // 3rd solution (use a binary reducer pattern)
+        partialHistogramsQueue.enqueue(partialHistogram);
 
-    std::ofstream totalOutData;
-    totalOutData.open(out_folder_parallel + std::to_string(n) + "gram_outputParallelVersion.txt", std::ios_base::binary);
+        std::map<std::string, int> partialHistogram1;
+        std::map<std::string, int> partialHistogram2;
 
-    for (const auto& entry : std::filesystem::directory_iterator(out_folder_parallel + "tmp/")){
-        if(std::filesystem::file_size(entry.path()) > 0) { // as empty files might be created with large chunk sizes
-            partOutData.open(entry.path(), std::ios_base::binary);
-            totalOutData << partOutData.rdbuf(); // read from partial and write to total
-            partOutData.close();
+        while(!partialHistogramsQueue.done()){
+            if(partialHistogramsQueue.dequeue(partialHistogram1, partialHistogram2)){
+
+                for(auto& kv : partialHistogram1) {
+                    it = partialHistogram2.find(kv.first);
+                    if(it != partialHistogram2.end())
+                        it->second += kv.second;
+                    else
+                        partialHistogram2.insert(std::make_pair(kv.first, kv.second));
+                }
+
+                partialHistogramsQueue.enqueue(partialHistogram2);
+            }
         }
-    }
+         */
 
-    totalOutData.close();
+    } // barrier
 
-    std::filesystem::remove_all(out_folder_parallel + "tmp/"); // clean up partial files
+    /* SEQUENTIAL PHASE: write to output file the Total Histogram */
+    sharedHistogram.writeHistogramToFile(out_folder_parallel + std::to_string(n) + "gram_outputParallelVersion.txt");
+    // histogramCollector.writeHistogramToFile(out_folder_parallel + std::to_string(n) + "gram_outputParallelVersion.txt");
+    // partialHistogramsQueue.writeHistogramToFile(out_folder_parallel + std::to_string(n) + "gram_outputParallelVersion.txt");
 }
 
 #endif //N_GRAM_PARALLELNGRAM_H
